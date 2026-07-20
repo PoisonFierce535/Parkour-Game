@@ -13,6 +13,7 @@ public class MainUIManager : MonoBehaviour
     public TextMeshProUGUI dynamicFrictionText;
     public TextMeshProUGUI isLandedText;
     public TextMeshProUGUI horizontalVelocityText;
+    public TextMeshProUGUI isWallrunningText;
 
     public PhysicsMaterial friction;
 
@@ -37,5 +38,6 @@ public class MainUIManager : MonoBehaviour
         dynamicFrictionText.text = "DynamicFriction: " + friction.dynamicFriction;
         isLandedText.text = "IsLanded: " + playerMovement.isLanded;
         horizontalVelocityText.text = "HorizontalVelocity: " + horizontalSpeed;
+        isWallrunningText.text = "isWallrunning: " + playerMovement.isWallrunning;
     }
 }
