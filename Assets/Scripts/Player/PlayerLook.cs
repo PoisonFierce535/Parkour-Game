@@ -38,6 +38,8 @@ public class PlayerLook : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
+
         lookInput = lookAction.ReadValue<Vector2>();
 
         yaw += lookInput.x * CAMERA_SENSITIVITY;

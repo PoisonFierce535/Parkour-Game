@@ -1,11 +1,6 @@
-using System;
 using System.Collections;
-using System.Diagnostics;
-using System.Threading;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Debug = UnityEngine.Debug;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -20,16 +15,11 @@ public class PlayerMovement : MonoBehaviour
     public PhysicsMaterial friction;
     public Transform feet;
     public Rigidbody rb;
-    private CapsuleCollider coll;
 
     public LayerMask groundLayer;
     public LayerMask wallLayer;
 
-    private GameObject recentWall;
-
-    private Vector3 wallRotation;
-
-    private string wallRunSide;
+    private Vector3 wallSide;
 
     public float dampingXZ = 0f;
     public float airForceDecreaser = 0;
@@ -43,7 +33,6 @@ public class PlayerMovement : MonoBehaviour
     public bool isWallrunning;
     public bool canLand;
     public bool canSlideInitialBoost;
-    private bool canWallrunInitialBoost;
 
     // EDITABLE //
     private const float GROUND_FORCE = 7500f;
@@ -51,20 +40,19 @@ public class PlayerMovement : MonoBehaviour
     private const float SLIDE_FORCE = 300f;
     private const float CROUCH_FORCE = SLIDE_FORCE * 3f;
     private const float JUMP_FORCE = 350f;
-    private const float WALLRUN_FORCE = 1000f;
-    private const float WALLRUN_COUNTER_UP_FORCE = 50f;
-    private const float JUMP_OFF_UP_FORCE = 600f;
-    private const float JUMP_OFF_FORWARD_FORCE = 600f;
+    private const float WALLRUN_COUNTER_UP_FORCE = 70f;
+    private const float JUMPOFF_UP_FORCE = 450f;
+    private const float JUMPOFF_SIDE_FORCE = 9f;
+    private const float DOWN_GRAVITY_FORCE = 400f;
 
+    private const float WALLRUN_JUMPOFF_BOOST = 50f;
     private const float SLIDE_INITIAL_BOOST = 150f;
     private const float JUMP_INITIAL_BOOST = 100f;
     private const float CROUCHED_IS_LANDED_INITIAL_BOOST = 1.01f;
     private const float GROUNDED_IS_LANDED_INITIAL_BOOST = 1.05f;
-    private const float WALLRUN_INITIAL_BOOST_UP = 100f;
-    private const float WALLRUN_INITIAL_BOOST_FORWARD = 200f;
 
-    private const float GROUNDED_VELOCITY_LIMIT = 15f;
-    private const float CROUCHING_VELOCITY_LIMIT = 4f;
+    private const float GROUNDED_VELOCITY_LIMIT = 15f; // if standing on ground
+    private const float CROUCHING_VELOCITY_LIMIT = 4f; // above is sliding
 
     private const float GROUND_DAMPING = 0.2f;
     private const float AIR_DAMPING = 0.01f;
@@ -95,11 +83,12 @@ public class PlayerMovement : MonoBehaviour
         crouchAction = InputActions.FindAction("Crouch");
 
         rb = GetComponent<Rigidbody>();
-        coll = GetComponent<CapsuleCollider>();
     }
 
     private void Update()
     {
+        if (Time.timeScale == 0) return;
+
         moveActionInput = moveAction.ReadValue<Vector2>();
 
         SetFriction();
@@ -113,6 +102,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (Time.timeScale == 0) return;
+
         GroundMove();
         AirMove();
 
@@ -127,7 +118,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (rb.linearVelocity.y < 0)
         {
-            rb.AddForce(Vector3.down * 150, ForceMode.Force);
+            rb.AddForce(Vector3.down * DOWN_GRAVITY_FORCE, ForceMode.Force);
         }
     }
     //
@@ -187,24 +178,9 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded || isWallrunning) return;
 
         // Adding force
-        float forceX = AIR_FORCE;
-        float forceZ = AIR_FORCE;
-
-        if (Math.Abs(rb.linearVelocity.x) > 13)
-        {
-            forceX /= 100;
-        }
-        if (Math.Abs(rb.linearVelocity.z) > 13)
-        {
-            forceZ /= 100;
-        }
-
         airForceDecreaser /= 1.05f;
 
-        forceX *= airForceDecreaser;
-        forceZ *= airForceDecreaser;
-        Debug.Log(forceX);
-        rb.AddRelativeForce(new Vector3(moveActionInput.x * forceX, 0f, moveActionInput.y * forceZ), ForceMode.Force);
+        rb.AddRelativeForce(new Vector3(moveActionInput.x, 0f, moveActionInput.y) * AIR_FORCE, ForceMode.Force);
 
         // Manual damping
         dampingXZ = AIR_DAMPING;
@@ -278,18 +254,6 @@ public class PlayerMovement : MonoBehaviour
         wallrunRequested = false;
         isWallrunning = true;
 
-        Vector3 boostDir;
-
-
-        if (Math.Abs(transform.localEulerAngles.y - wallRotation.y) <= 90)
-        {
-            boostDir = wallRotation;
-        }
-        else
-        {
-            boostDir = new Vector3(wallRotation.x, -wallRotation.y, wallRotation.z);
-        }
-
         while (isWallrunning)
         {
             // jump-off
@@ -297,37 +261,29 @@ public class PlayerMovement : MonoBehaviour
             {
                 isWallrunning = false;
 
-                rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
+                if (rb.linearVelocity.y < 0)
+                {
+                    rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
+                }
 
-                // base boost
-                //rb.AddRelativeForce(Vector3.up * JUMP_OFF_UP_FORCE, ForceMode.Impulse);
-                //rb.AddRelativeForce(new Vector3(1, 0, 1) * (boostDir.z * WALLRUN_INITIAL_BOOST_FORWARD), ForceMode.Impulse);
+                rb.AddRelativeForce(Vector3.up * JUMPOFF_UP_FORCE, ForceMode.Impulse);
+                if (moveActionInput.y < 0)
+                {
+                    rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0);
+                    rb.AddRelativeForce(Vector3.back * WALLRUN_JUMPOFF_BOOST, ForceMode.Impulse);
+                }
+                else if (moveActionInput.y > 0)
+                {
+                    rb.AddRelativeForce(Vector3.forward * WALLRUN_JUMPOFF_BOOST, ForceMode.Impulse);
+                }
 
-                // directional boost
-                float yRotRad = Math.Abs(transform.localEulerAngles.y - boostDir.y) * Mathf.Deg2Rad;
-                float lookMultiplier = Mathf.Abs(Mathf.Cos(yRotRad));
-
-                rb.AddRelativeForce(Vector3.forward * JUMP_OFF_FORWARD_FORCE * lookMultiplier, ForceMode.Impulse);
-                rb.AddRelativeForce(Vector3.up * JUMP_OFF_UP_FORCE * lookMultiplier, ForceMode.Impulse);
+                rb.linearVelocity += wallSide * JUMPOFF_SIDE_FORCE;
 
                 break;
             }
 
-            // initial boost
-            if (canWallrunInitialBoost)
-            {
-                canWallrunInitialBoost = false;
-
-                rb.AddRelativeForce(Vector3.up * WALLRUN_INITIAL_BOOST_UP, ForceMode.Impulse);
-                rb.AddRelativeForce(Vector3.forward * (boostDir.z * WALLRUN_INITIAL_BOOST_FORWARD), ForceMode.Impulse);
-            }
-            // forward force (change it to the player's input)
-            rb.AddRelativeForce(Vector3.forward * (boostDir.z * WALLRUN_FORCE * moveActionInput), ForceMode.Force);
             // counter (up) force
-            if (rb.linearVelocity.y <= 0)
-            {
-                rb.AddRelativeForce(Vector3.up * WALLRUN_COUNTER_UP_FORCE, ForceMode.Force);
-            }
+            if (rb.linearVelocity.y <= 0) rb.AddRelativeForce(Vector3.up * WALLRUN_COUNTER_UP_FORCE, ForceMode.Force);
 
             // stop wallrunnnig if out of the wall
             if (!Physics.CheckSphere(transform.position, 1, wallLayer))
@@ -344,9 +300,7 @@ public class PlayerMovement : MonoBehaviour
             yield return new WaitForSeconds(0.001f);
         }
 
-        isWallrunning = false;
-        wallRotation = Vector3.zero;
-        wallRunSide = string.Empty;
+        wallSide = Vector3.zero;
     }
     //
     private void SetFriction()
@@ -388,50 +342,16 @@ public class PlayerMovement : MonoBehaviour
         {
             RaycastHit hit;
 
-            if (Physics.Raycast(transform.position, transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer))
+            if (Physics.Raycast(transform.position, transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer)) // right side
             {
-                if (recentWall != hit.collider.gameObject)
-                {
-                    wallRunSide = "Right";
-                    wallRotation = hit.collider.gameObject.transform.localEulerAngles;
-                    recentWall = hit.collider.gameObject;
-                }
+                if (wallSide != hit.normal) wallSide = hit.normal;
             }
-            else if (Physics.Raycast(transform.position, -transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer))
+            else if (Physics.Raycast(transform.position, -transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer)) // left side
             {
-                if (recentWall != hit.collider.gameObject)
-                {
-                    wallRunSide = "Left";
-                    wallRotation = hit.collider.gameObject.transform.localEulerAngles;
-                    recentWall = hit.collider.gameObject;
-                }
+                if (wallSide != hit.normal) wallSide = hit.normal;
             }
-
-            /*
-            for (int i = 0; i < 179; i++)
-            {
-                bool wallHitRight = Physics.Raycast(transform.position, new Vector3(1 + i, 0, 0), out hit, RAYCAST_WALLRUN_LENGTH, wallLayer);
-                bool wallHitLeft = Physics.Raycast(transform.position, new Vector3(1 - i, 0, 0), out hit, RAYCAST_WALLRUN_LENGTH, wallLayer);
-
-                if (wallHitRight)
-                {
-                    wallRunSide = "Right";
-                    wallRotation = hit.collider.gameObject.transform.localEulerAngles;
-                }
-                else if (wallHitLeft)
-                {
-                    wallRunSide = "Left";
-                    wallRotation = hit.collider.gameObject.transform.localEulerAngles;
-                }
-            }
-           */
         }
-        else if (isGrounded)
-        {
-            wallRunSide = string.Empty;
-            wallRotation = Vector3.zero;
-            recentWall = null;
-        }
+        else if (isGrounded) wallSide = Vector3.zero;
     }
     private void SetIsGroundedAndLandedState()
     {
@@ -458,15 +378,8 @@ public class PlayerMovement : MonoBehaviour
         if (crouchAction.IsPressed()) crouchRequested = true;
         else if (crouchAction.WasReleasedThisFrame()) crouchRequested = false;
 
-        if ((wallRunSide == "Right" || wallRunSide == "Left") && !isWallrunning)
-        {
-            wallrunRequested = true;
-            canWallrunInitialBoost = true;
-        }
-        else
-        {
-            wallrunRequested = false;
-        }
+        if (wallSide != Vector3.zero && !isWallrunning) wallrunRequested = true;
+        else wallrunRequested = false;
     }
     //
     private IEnumerator StartLandedState()
