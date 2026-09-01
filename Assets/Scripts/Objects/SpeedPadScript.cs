@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class SpeedPadScript : MonoBehaviour
 {
+    private PlayerMovement playerMovement;
+
     public float speedBoost = 30f;
 
     // EDITABLE //
@@ -15,7 +17,10 @@ public class SpeedPadScript : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (canBoost && other.gameObject.CompareTag("Player"))
+        bool isPlayer = other.gameObject.CompareTag("Player"); 
+        PlayerMovement playerMovement = other.gameObject.GetComponent<PlayerMovement>();
+
+        if (canBoost && isPlayer && playerMovement.isCrouched)
         {
             canBoost = false;
 

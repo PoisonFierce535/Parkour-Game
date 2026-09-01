@@ -1,0 +1,39 @@
+using TMPro;
+using UnityEngine;
+
+public class DevUIManager : MonoBehaviour
+{
+    private PlayerMovement playerMovement;
+
+    public TextMeshProUGUI velocityText;
+    public TextMeshProUGUI isGroundedText;
+    public TextMeshProUGUI isCrouchedText;
+    public TextMeshProUGUI dampingXZText;
+    public TextMeshProUGUI isLandedText;
+    public TextMeshProUGUI horizontalVelocityText;
+    public TextMeshProUGUI isWallrunningText;
+
+    public PhysicsMaterial friction;
+
+
+
+    void Start()
+    {
+        playerMovement = GameObject.Find("Player").GetComponent<PlayerMovement>();
+    }
+
+    void Update()
+    {
+        Vector3 velocity = playerMovement.rb.linearVelocity;
+        Vector3 flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
+        float horizontalSpeed = flatVelocity.magnitude;
+
+        dampingXZText.text = "DampingXZ: " + playerMovement.dampingXZ;
+        velocityText.text = "Velocity: " + playerMovement.rb.linearVelocity.x;
+        isGroundedText.text = "isGrounded: " + playerMovement.isGrounded;
+        isCrouchedText.text = "isCrouched: " + playerMovement.isCrouched;
+        isLandedText.text = "IsLanded: " + playerMovement.isLanded;
+        horizontalVelocityText.text = "HorizontalVelocity: " + horizontalSpeed;
+        isWallrunningText.text = "isWallrunning: " + playerMovement.isWallrunning;
+    }
+}

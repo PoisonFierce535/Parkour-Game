@@ -1,10 +1,14 @@
+using System;
 using System.Collections;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.WindowsRuntime;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.ProBuilder;
 
 public class PlayerMovement : MonoBehaviour
 {
-    // ALWAYS CHECK TRELLO //
     public InputActionAsset InputActions;
 
     private InputAction moveAction;
@@ -12,56 +16,62 @@ public class PlayerMovement : MonoBehaviour
     private InputAction crouchAction;
     private Vector2 moveActionInput;
 
-    public PhysicsMaterial friction;
     public Transform feet;
     public Rigidbody rb;
 
     public LayerMask groundLayer;
     public LayerMask wallLayer;
 
-    private Vector3 wallSide;
+    public Vector3 currentWallSide;
+    public Vector3 recentWallSide;
 
     public float dampingXZ = 0f;
     public float airForceDecreaser = 0;
 
-    private bool jumpRequested;
+    public bool jumpRequested;
     private bool crouchRequested;
+    private bool uncrouchRequested;
     private bool wallrunRequested;
+
     public bool isGrounded;
     public bool isCrouched;
     public bool isLanded;
     public bool isWallrunning;
+    public bool isCrouchWalking;
+    public bool isSliding;
+
     public bool canLand;
     public bool canSlideInitialBoost;
-
+    
     // EDITABLE //
     private const float GROUND_FORCE = 7500f;
     private const float AIR_FORCE = 500f;
-    private const float SLIDE_FORCE = 300f;
-    private const float CROUCH_FORCE = SLIDE_FORCE * 3f;
+    private const float SLIDE_FORCE = CROUCH_FORCE / 2;
+    private const float CROUCH_FORCE = 900f;
     private const float JUMP_FORCE = 350f;
     private const float WALLRUN_COUNTER_UP_FORCE = 70f;
-    private const float JUMPOFF_UP_FORCE = 450f;
-    private const float JUMPOFF_SIDE_FORCE = 9f;
     private const float DOWN_GRAVITY_FORCE = 400f;
 
-    private const float WALLRUN_JUMPOFF_BOOST = 50f;
+    private const float JUMPOFF_UP_BOOST = 450f;
+    private const float JUMPOFF_SIDE_BOOST = 8f;
+    private const float JUMPOFF_DIRECTION_BOOST = 70f;
     private const float SLIDE_INITIAL_BOOST = 150f;
     private const float JUMP_INITIAL_BOOST = 100f;
-    private const float CROUCHED_IS_LANDED_INITIAL_BOOST = 1.01f;
-    private const float GROUNDED_IS_LANDED_INITIAL_BOOST = 1.05f;
+    private const float CROUCH_ISLANDED_INITIAL_BOOST = 1.01f;
+    private const float GROUNDED_ISLANDED_INITIAL_BOOST = 1.05f;
 
     private const float GROUNDED_VELOCITY_LIMIT = 15f; // if standing on ground
-    private const float CROUCHING_VELOCITY_LIMIT = 4f; // above is sliding
+    private const float CROUCH_VELOCITY_LIMIT = 6f; // above is sliding
+    private const float SLIDE_VELOCITY_LIMIT = 14f; // above won't let you go faster
 
     private const float GROUND_DAMPING = 0.2f;
     private const float AIR_DAMPING = 0.01f;
-    private const float SLIDE_DAMPING = 0.005f;
-    private const float CROUCH_DAMPING = 0.001f;
+    private const float SLIDE_DAMPING = 0.01f;
+    private const float CROUCH_DAMPING = 0.05f;
 
-    private const float IS_LANDED_DURATION = 0.3f;
+    private const float GROUNDED_VELOCITY_EPSILON = 0.1f;
 
-    private const float RAYCAST_WALLRUN_LENGTH = 0.6f;
+    private const float ISLANDED_DURATION = 0.3f;
     // EDITABLE //
 
 
@@ -91,13 +101,11 @@ public class PlayerMovement : MonoBehaviour
 
         moveActionInput = moveAction.ReadValue<Vector2>();
 
-        SetFriction();
-
-        SetIsGroundedAndLandedState();
+        SetIsGroundedAndIsLanded();
 
         SetMoveRequests();
 
-        SetWallrunStuff();
+        SetWallSide();
     }
 
     private void FixedUpdate()
@@ -129,23 +137,61 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded)
         {
             // Adding force
-            float force = GROUND_FORCE; // grounded
-            force = isCrouched && rb.linearVelocity.magnitude > CROUCHING_VELOCITY_LIMIT ? SLIDE_FORCE : force; // sliding
-            force = isCrouched && rb.linearVelocity.magnitude <= CROUCHING_VELOCITY_LIMIT ? CROUCH_FORCE : force; // crouching
+            float force = GROUND_FORCE;
 
-            rb.AddRelativeForce(new Vector3(moveActionInput.x, 0f, moveActionInput.y) * force, ForceMode.Force);
+            if (isCrouched)
+            {
+                if (rb.linearVelocity.magnitude <= CROUCH_VELOCITY_LIMIT)
+                {
+                    isCrouchWalking = true;
+                    isSliding = false;
+
+                    force = CROUCH_FORCE;
+
+                    rb.AddRelativeForce(new Vector3(moveActionInput.x, 0f, moveActionInput.y) * force, ForceMode.Force);
+                }
+                else if (rb.linearVelocity.magnitude > CROUCH_VELOCITY_LIMIT)
+                {
+                    isCrouchWalking = false;
+                    isSliding = true;
+
+                    force = SLIDE_FORCE;
+
+                    float newMAIX;
+                    float newMAIZ;
+                    
+                    Vector3 localVelocity = transform.InverseTransformDirection(rb.linearVelocity);
+                    if (localVelocity.x > CROUCH_VELOCITY_LIMIT && moveActionInput.x > 0) newMAIX = 0f;
+                    else if (localVelocity.x < -CROUCH_VELOCITY_LIMIT && moveActionInput.x < 0) newMAIX = 0f;
+                    else newMAIX = moveActionInput.x;
+                    if (localVelocity.z > CROUCH_VELOCITY_LIMIT && moveActionInput.y > 0) newMAIZ = 0f;
+                    else if (localVelocity.z < -CROUCH_VELOCITY_LIMIT && moveActionInput.y < 0) newMAIZ = 0f;
+                    else newMAIZ = moveActionInput.y;
+                    
+                    rb.AddRelativeForce(new Vector3(newMAIX, 0f, newMAIZ) * force, ForceMode.Force);         
+                }
+            }
+            else
+            {
+                isCrouchWalking = false;
+                isSliding = false;
+
+                rb.AddRelativeForce(new Vector3(moveActionInput.x, 0f, moveActionInput.y) * force, ForceMode.Force);
+            }
 
             // Manual damping
-            dampingXZ = GROUND_DAMPING; // grounded
-            dampingXZ = isCrouched && rb.linearVelocity.magnitude > CROUCHING_VELOCITY_LIMIT ? SLIDE_DAMPING : dampingXZ; // sliding
-            dampingXZ = isCrouched && rb.linearVelocity.magnitude <= CROUCHING_VELOCITY_LIMIT ? CROUCH_DAMPING : dampingXZ; // crouching
+            dampingXZ = GROUND_DAMPING;
+            dampingXZ = isCrouchWalking ? CROUCH_DAMPING : dampingXZ;
+            dampingXZ = isSliding ? SLIDE_DAMPING : dampingXZ;
 
             velocity.x *= (1 - dampingXZ);
             velocity.z *= (1 - dampingXZ);
 
+            velocity = velocity.magnitude < GROUNDED_VELOCITY_EPSILON ? new Vector3(0, velocity.y, 0) : velocity;
+
             rb.linearVelocity = velocity;
 
-            // Grounded velocity limit, XZ axes
+            // Grounded velocity limit
             if (!isCrouched)
             {
                 if (rb.linearVelocity.x > GROUNDED_VELOCITY_LIMIT)
@@ -166,16 +212,16 @@ public class PlayerMovement : MonoBehaviour
                     rb.linearVelocity = new Vector3(rb.linearVelocity.x, rb.linearVelocity.y, -GROUNDED_VELOCITY_LIMIT);
                 }
             }
-
-
         }
     }
     private void AirMove()
     {
         Vector3 velocity = rb.linearVelocity;
-        if (isGrounded) airForceDecreaser = 2; // resets
 
         if (isGrounded || isWallrunning) return;
+
+        if (isGrounded) airForceDecreaser = 2; // resets
+
 
         // Adding force
         airForceDecreaser /= 1.05f;
@@ -193,10 +239,10 @@ public class PlayerMovement : MonoBehaviour
     //
     private void UseMoveRequestsAndMoves()
     {
-        if (jumpRequested && isGrounded) Jump();
+        if (jumpRequested) Jump();
 
-        if (crouchRequested && !isCrouched) Crouch();
-        else if (!crouchRequested && isCrouched) Uncrouch();
+        if (crouchRequested) Crouch();
+        else if (uncrouchRequested) Uncrouch();
 
         if (wallrunRequested) StartCoroutine(Wallrun());
     }
@@ -207,22 +253,24 @@ public class PlayerMovement : MonoBehaviour
         rb.AddForce(Vector3.up * JUMP_FORCE, ForceMode.Impulse);
 
         Vector3 dir = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z).normalized;
-        if (!isCrouched)
+        if (isCrouched)
         {
-            rb.AddForce(dir * JUMP_INITIAL_BOOST, ForceMode.Impulse);
+            rb.AddForce(dir * JUMP_INITIAL_BOOST / 3, ForceMode.Impulse);
         }
         else
         {
-            rb.AddForce(dir * JUMP_INITIAL_BOOST / 3, ForceMode.Impulse);
+            rb.AddForce(dir * JUMP_INITIAL_BOOST, ForceMode.Impulse);
         }
     }
     private void Crouch()
     {
+        crouchRequested = false;
+
         isCrouched = true;
 
         transform.localScale = new Vector3(transform.localScale.x, transform.localScale.y / 2, transform.localScale.z);
 
-        if (isGrounded && rb.linearVelocity.magnitude > CROUCHING_VELOCITY_LIMIT && canSlideInitialBoost) // sliding
+        if (isGrounded && rb.linearVelocity.magnitude > CROUCH_VELOCITY_LIMIT && canSlideInitialBoost) // sliding
         {
             canSlideInitialBoost = false;
 
@@ -238,6 +286,8 @@ public class PlayerMovement : MonoBehaviour
     }
     private void Uncrouch()
     {
+        uncrouchRequested = false;
+
         isCrouched = false;
 
         canSlideInitialBoost = true;
@@ -254,30 +304,46 @@ public class PlayerMovement : MonoBehaviour
         wallrunRequested = false;
         isWallrunning = true;
 
+        bool canVerticalWallrunInitialBoost = true;
+        bool startingVerticalWallrun = false;
+
         while (isWallrunning)
         {
+            // vertial wallrun inital boost
+            if (GetWallDirection() == "Up" && canVerticalWallrunInitialBoost)
+            {
+                canVerticalWallrunInitialBoost = false;
+                startingVerticalWallrun = true;
+                rb.AddRelativeForce(Vector3.up * 150, ForceMode.Impulse);
+            }
+            else
+            {
+                canVerticalWallrunInitialBoost = false;
+            }
+            
             // jump-off
             if (jumpAction.WasPressedThisFrame())
             {
-                isWallrunning = false;
-
                 if (rb.linearVelocity.y < 0)
                 {
                     rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
                 }
 
-                rb.AddRelativeForce(Vector3.up * JUMPOFF_UP_FORCE, ForceMode.Impulse);
-                if (moveActionInput.y < 0)
-                {
-                    rb.linearVelocity = new Vector3(0, rb.linearVelocity.y, 0);
-                    rb.AddRelativeForce(Vector3.back * WALLRUN_JUMPOFF_BOOST, ForceMode.Impulse);
-                }
-                else if (moveActionInput.y > 0)
-                {
-                    rb.AddRelativeForce(Vector3.forward * WALLRUN_JUMPOFF_BOOST, ForceMode.Impulse);
-                }
+                rb.AddRelativeForce(Vector3.up * JUMPOFF_UP_BOOST, ForceMode.Impulse);
 
-                rb.linearVelocity += wallSide * JUMPOFF_SIDE_FORCE;
+                if (GetWallDirection() != "Up")
+                {
+                    if (moveActionInput.y > 0)
+                    {
+                        rb.AddRelativeForce(Vector3.forward * JUMPOFF_DIRECTION_BOOST, ForceMode.Impulse);
+                    }
+                    else if (moveActionInput.y < 0)
+                    {
+                        rb.AddRelativeForce(Vector3.back * JUMPOFF_DIRECTION_BOOST, ForceMode.Impulse);
+                    }
+
+                    rb.linearVelocity += currentWallSide * JUMPOFF_SIDE_BOOST;
+                }
 
                 break;
             }
@@ -285,85 +351,86 @@ public class PlayerMovement : MonoBehaviour
             // counter (up) force
             if (rb.linearVelocity.y <= 0) rb.AddRelativeForce(Vector3.up * WALLRUN_COUNTER_UP_FORCE, ForceMode.Force);
 
-            // stop wallrunnnig if out of the wall
-            if (!Physics.CheckSphere(transform.position, 1, wallLayer))
+            // counter (side) force (if started vertical wallrun)
+            if (startingVerticalWallrun)
             {
-                isWallrunning = false;
-                break;
-            }
-            else if (isGrounded)
-            {
-                isWallrunning = false;
-                break;
+                rb.linearVelocity = new Vector3(rb.linearVelocity.x / 1.005f, rb.linearVelocity.y, rb.linearVelocity.z / 1.005f);
             }
 
-            yield return new WaitForSeconds(0.001f);
+            // stop wallrunnnig if out of the wall
+            if (!Physics.CheckSphere(transform.position, 1.3f, wallLayer)) break;
+            else if (isGrounded) break;
+
+            yield return new WaitForSeconds(0.0001f);
         }
 
-        wallSide = Vector3.zero;
+        isWallrunning = false;
+
+        recentWallSide = currentWallSide;
+        currentWallSide = Vector3.zero;
     }
     //
-    private void SetFriction()
+    private string GetWallDirection()
     {
-        if (isGrounded && !isCrouched) // grounded
-        {
-            friction.dynamicFriction = 1;
-            friction.staticFriction = 2;
-        }
-        else if (isLanded) // landed
-        {
-            friction.dynamicFriction = 0;
-            friction.staticFriction = 0;
+        Vector3[] directions = { transform.forward, -transform.forward, transform.right, -transform.right };
 
-            friction.frictionCombine = PhysicsMaterialCombine.Average;
-        }
-        else if (isGrounded && isCrouched && rb.linearVelocity.magnitude > CROUCHING_VELOCITY_LIMIT) // sliding
+        foreach (Vector3 dir in directions)
         {
-            friction.dynamicFriction = 0.2f;
-            friction.staticFriction = 0.2f;
-        }
-        else if (isGrounded && isCrouched && rb.linearVelocity.magnitude <= CROUCHING_VELOCITY_LIMIT) // crouching
-        {
-            friction.dynamicFriction = 1f;
-            friction.staticFriction = 1;
-        }
-        else if (!isGrounded) // in-air
-        {
-            friction.dynamicFriction = 0;
-            friction.staticFriction = 0;
-
-            friction.frictionCombine = PhysicsMaterialCombine.Minimum;
+            if (Physics.SphereCast(transform.position, 0.14f, dir, out RaycastHit hit, 1, wallLayer))
+            {
+                if (dir == transform.forward) return "Up";
+                else if (dir == -transform.forward) return "Down";
+                else if (dir == transform.right) return "Right";
+                else return "Left";
+            }
         }
 
+        return null;
     }
-    private void SetWallrunStuff()
+    private void SetWallSide()
     {
         if (!isGrounded && !isCrouched && !isWallrunning)
         {
-            RaycastHit hit;
+            Vector3[] directions = { transform.forward, -transform.forward, transform.right, -transform.right };
 
-            if (Physics.Raycast(transform.position, transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer)) // right side
+            foreach (Vector3 dir in directions)
             {
-                if (wallSide != hit.normal) wallSide = hit.normal;
-            }
-            else if (Physics.Raycast(transform.position, -transform.right, out hit, RAYCAST_WALLRUN_LENGTH, wallLayer)) // left side
-            {
-                if (wallSide != hit.normal) wallSide = hit.normal;
+                if (Physics.SphereCast(transform.position, 0.14f, dir, out RaycastHit hit, 1, wallLayer))
+                {
+                    float distanceFromTop = hit.collider.bounds.max.y - hit.point.y;
+                    if (distanceFromTop < 0.15f)
+                    {
+                        continue;
+                    }
+
+                    if (hit.normal != recentWallSide)
+                    {
+                        float alignment = Vector3.Dot(hit.normal, transform.up);
+                        float toleranceDegrees = 45f;
+                        float threshold = Mathf.Cos((90f - toleranceDegrees) * Mathf.Deg2Rad);
+
+                        if (MathF.Abs(alignment) < threshold)
+                        {
+                            recentWallSide = Vector3.zero;
+                            currentWallSide = hit.normal;
+                            return;
+                        } 
+                    }
+                }
             }
         }
-        else if (isGrounded) wallSide = Vector3.zero;
+        else if (isGrounded)
+        {
+            currentWallSide = Vector3.zero;
+            recentWallSide = Vector3.zero;
+        }
     }
-    private void SetIsGroundedAndLandedState()
+    private void SetIsGroundedAndIsLanded()
     {
         if (Physics.CheckSphere(feet.position, 0.2f, groundLayer) && canLand == true)
         {
             isGrounded = true;
             canLand = false;
-
-            if (!isCrouched)
-            {
-                StartCoroutine(StartLandedState());
-            }
         }
         else if (!Physics.CheckSphere(feet.position, 0.2f, groundLayer))
         {
@@ -373,42 +440,11 @@ public class PlayerMovement : MonoBehaviour
     }
     private void SetMoveRequests()
     {
-        if (jumpAction.WasPressedThisFrame()) jumpRequested = true;
+        if (jumpAction.WasPressedThisFrame() && !isWallrunning && isGrounded) jumpRequested = true;
 
-        if (crouchAction.IsPressed()) crouchRequested = true;
-        else if (crouchAction.WasReleasedThisFrame()) crouchRequested = false;
+        if (crouchAction.IsPressed() && !isCrouched) crouchRequested = true;
+        else if (crouchAction.WasReleasedThisFrame() && isCrouched) uncrouchRequested = true;
 
-        if (wallSide != Vector3.zero && !isWallrunning) wallrunRequested = true;
-        else wallrunRequested = false;
-    }
-    //
-    private IEnumerator StartLandedState()
-    {
-        isLanded = true;
-
-        // remove any resistance
-        dampingXZ = 0f;
-        friction.dynamicFriction = 0;
-        friction.staticFriction = 0;
-
-        float timer = 0f;
-        while (timer < IS_LANDED_DURATION)
-        {
-            // boost
-            float boost = isCrouched ? CROUCHED_IS_LANDED_INITIAL_BOOST : GROUNDED_IS_LANDED_INITIAL_BOOST;
-            Vector3 dir = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z).normalized;
-
-            rb.linearVelocity += dir * boost;
-
-            if (!isGrounded)
-            {
-                break;
-            }
-
-            yield return new WaitForSeconds(0.1f);
-            timer += 0.1f;
-        }
-
-        isLanded = false;
+        if (currentWallSide != Vector3.zero && !isWallrunning) wallrunRequested = true;
     }
 }

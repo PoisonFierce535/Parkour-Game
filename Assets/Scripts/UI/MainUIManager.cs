@@ -1,43 +1,75 @@
-using TMPro;
+using NUnit.Framework.Internal;
 using UnityEngine;
 
 public class MainUIManager : MonoBehaviour
 {
     private PlayerMovement playerMovement;
 
-    public TextMeshProUGUI velocityText;
-    public TextMeshProUGUI isGroundedText;
-    public TextMeshProUGUI isCrouchedText;
-    public TextMeshProUGUI dampingXZText;
-    public TextMeshProUGUI staticFrictionText;
-    public TextMeshProUGUI dynamicFrictionText;
-    public TextMeshProUGUI isLandedText;
-    public TextMeshProUGUI horizontalVelocityText;
-    public TextMeshProUGUI isWallrunningText;
+    private Camera mainCamera;
 
-    public PhysicsMaterial friction;
+    public string wallDir;
 
+    public GameObject wallLeft;
+    public GameObject wallRight;
+    public GameObject wallUp;
+    public GameObject wallDown;
+
+    private bool disableVisualsDebounce;
 
 
-    void Start()
+
+    private void Start()
     {
+        mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
         playerMovement = GameObject.Find("Player").GetComponent<PlayerMovement>();
+
+        disableVisualsDebounce = true;
     }
 
-    void Update()
+    private void Update()
     {
-        Vector3 velocity = playerMovement.rb.linearVelocity;
-        Vector3 flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
-        float horizontalSpeed = flatVelocity.magnitude;
+        if (playerMovement.isWallrunning)
+        {
+            disableVisualsDebounce = true;
+            wallDir = GetScreenDirection(playerMovement.currentWallSide, mainCamera);
+            SetVisuals();
+        }
+        else if (disableVisualsDebounce)
+        {
+            disableVisualsDebounce = false;
+            wallDir = string.Empty;
+            DisableVisuals();
+        }
+    }
 
-        dampingXZText.text = "DampingXZ: " + playerMovement.dampingXZ;
-        velocityText.text = "Velocity: " + playerMovement.rb.linearVelocity.x;
-        isGroundedText.text = "isGrounded: " + playerMovement.isGrounded;
-        isCrouchedText.text = "isCrouched: " + playerMovement.isCrouched;
-        staticFrictionText.text = "StaticFriction: " + friction.staticFriction;
-        dynamicFrictionText.text = "DynamicFriction: " + friction.dynamicFriction;
-        isLandedText.text = "IsLanded: " + playerMovement.isLanded;
-        horizontalVelocityText.text = "HorizontalVelocity: " + horizontalSpeed;
-        isWallrunningText.text = "isWallrunning: " + playerMovement.isWallrunning;
+    // FUNCTIONS //
+    public static string GetScreenDirection(Vector3 worldNormal, Camera camera)
+    {
+        Vector3 camRight = camera.transform.right;
+        Vector3 camForward = camera.transform.forward;
+
+        float x = Vector3.Dot(worldNormal, camRight);
+        float y = Vector3.Dot(worldNormal, camForward);
+
+        if (Mathf.Abs(x) > Mathf.Abs(y))
+            return x < 0 ? "Right" : "Left";
+        else
+            return y < 0 ? "Up" : "Down";
+    }
+
+    private void SetVisuals()
+    {
+        wallLeft.SetActive(wallDir == "Left");
+        wallRight.SetActive(wallDir == "Right");
+        wallUp.SetActive(wallDir == "Up");
+        wallDown.SetActive(wallDir == "Down");
+    }
+
+    private void DisableVisuals()
+    {
+        wallLeft.SetActive(false);
+        wallRight.SetActive(false);
+        wallUp.SetActive(false);
+        wallDown.SetActive(false);
     }
 }
