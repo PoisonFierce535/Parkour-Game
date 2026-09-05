@@ -1,4 +1,4 @@
-# [Game Name]
+# Parkour Game
 
 A parkour game built in Unity, highly inspired by *Karlson* by Dani.
 
