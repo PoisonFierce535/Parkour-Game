@@ -6,7 +6,7 @@ A parkour game built in Unity, highly inspired by *Karlson* by Dani.
 
 ## About
 
-This is a small solo game project focused on fast, fluid movement. The current build (`v0.1.0`) is an early playable prototype — expect bugs and missing features.
+This is a small solo game project focused on fast, fluid movement.
 
 ## Core Mechanics
 
