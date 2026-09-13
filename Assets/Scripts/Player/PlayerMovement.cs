@@ -1,12 +1,9 @@
 using System;
 using System.Collections;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.ProBuilder;
 
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerMovement : MonoBehaviour
 {
     public InputActionAsset InputActions;
@@ -57,8 +54,6 @@ public class PlayerMovement : MonoBehaviour
     private const float JUMPOFF_DIRECTION_BOOST = 70f;
     private const float SLIDE_INITIAL_BOOST = 150f;
     private const float JUMP_INITIAL_BOOST = 100f;
-    private const float CROUCH_ISLANDED_INITIAL_BOOST = 1.01f;
-    private const float GROUNDED_ISLANDED_INITIAL_BOOST = 1.05f;
 
     private const float GROUNDED_VELOCITY_LIMIT = 15f; // if standing on ground
     private const float CROUCH_VELOCITY_LIMIT = 6f; // above is sliding
@@ -70,8 +65,6 @@ public class PlayerMovement : MonoBehaviour
     private const float CROUCH_DAMPING = 0.05f;
 
     private const float GROUNDED_VELOCITY_EPSILON = 0.1f;
-
-    private const float ISLANDED_DURATION = 0.3f;
     // EDITABLE //
 
 

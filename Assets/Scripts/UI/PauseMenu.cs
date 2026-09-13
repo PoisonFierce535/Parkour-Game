@@ -24,6 +24,9 @@ public class PauseMenu : MonoBehaviour
     void Start()
     {
         pauseMenuAction = InputActions.FindAction("PauseMenu");
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     void Update()

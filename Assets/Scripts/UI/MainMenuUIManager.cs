@@ -7,7 +7,13 @@ public class MainMenuUIManager : MonoBehaviour
     public GameObject mainUI;
     public GameObject levelsUI;
 
-    
+
+
+    private void Start()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
 
     // FUNCTIONS //
     // MainUI

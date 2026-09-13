@@ -20,7 +20,7 @@ public class MainUIManager : MonoBehaviour
 
     private void Start()
     {
-        mainCamera = GameObject.Find("Main Camera").GetComponent<Camera>();
+        mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponent<Camera>();
         playerMovement = GameObject.Find("Player").GetComponent<PlayerMovement>();
 
         disableVisualsDebounce = true;

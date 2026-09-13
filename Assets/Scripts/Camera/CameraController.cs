@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerLook : MonoBehaviour
+[RequireComponent(typeof(Camera))]
+public class CameraController : MonoBehaviour
 {
     public InputActionAsset InputActions;
-    public GameObject cameraHolder;
+
+    private Camera mainCamera;
+    private Rigidbody rb;
 
     private InputAction lookAction;
 
@@ -23,7 +26,6 @@ public class PlayerLook : MonoBehaviour
     {
         InputActions.FindActionMap("Player").Enable();
     }
-
     private void OnDisable()
     {
         InputActions.FindActionMap("Player").Disable();
@@ -32,30 +34,39 @@ public class PlayerLook : MonoBehaviour
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
 
         lookAction = InputActions.FindAction("Look");
+
+        mainCamera = GetComponent<Camera>();
+        rb = GameObject.Find("Player").GetComponent<Rigidbody>();
     }
 
     private void Update()
     {
         if (Time.timeScale == 0) return;
 
+        // set rotation values
         lookInput = lookAction.ReadValue<Vector2>();
 
         yaw += lookInput.x * CAMERA_SENSITIVITY;
 
         pitch -= lookInput.y * CAMERA_SENSITIVITY;
         pitch = Mathf.Clamp(pitch, -MAX_VERTICAL_CAMERA_ANGLE, MAX_VERTICAL_CAMERA_ANGLE);
+
+        // set camera's position based on player
+        mainCamera.transform.position = rb.transform.position;
+    }
+
+    private void FixedUpdate()
+    {
+        // set player's rotation based on camera
+        rb.transform.localEulerAngles = new Vector3(0f, mainCamera.transform.localEulerAngles.y, 0f);
     }
 
     private void LateUpdate()
     {
-        RotateCamera();
-    }
-
-    void RotateCamera()
-    {
-        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-        cameraHolder.transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+        // rotate camera
+        mainCamera.transform.localRotation = Quaternion.Euler(pitch, yaw, mainCamera.transform.eulerAngles.z);
     }
 }
