@@ -47,7 +47,7 @@ public class PlayerMovement : MonoBehaviour
     private const float CROUCH_FORCE = 900f;
     private const float JUMP_FORCE = 350f;
     private const float WALLRUN_COUNTER_UP_FORCE = 70f;
-    private const float DOWN_GRAVITY_FORCE = 400f;
+    private const float DOWN_GRAVITY_FORCE = 600f;
 
     private const float JUMPOFF_UP_BOOST = 450f;
     private const float JUMPOFF_SIDE_BOOST = 8f;
@@ -57,7 +57,6 @@ public class PlayerMovement : MonoBehaviour
 
     private const float GROUNDED_VELOCITY_LIMIT = 15f; // if standing on ground
     private const float CROUCH_VELOCITY_LIMIT = 6f; // above is sliding
-    private const float SLIDE_VELOCITY_LIMIT = 14f; // above won't let you go faster
 
     private const float GROUND_DAMPING = 0.2f;
     private const float AIR_DAMPING = 0.01f;
@@ -68,6 +67,8 @@ public class PlayerMovement : MonoBehaviour
     // EDITABLE //
 
 
+
+    // Vault: distanceFromTop, angle of gameobject, distance from gameobject, in-air, automatically
 
     // Enables/disables the Input System
     private void OnEnable()

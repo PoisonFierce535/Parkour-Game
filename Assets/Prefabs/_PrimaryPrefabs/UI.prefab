@@ -292,8 +292,6 @@ MonoBehaviour:
   isGroundedText: {fileID: 6461117786592981321}
   isCrouchedText: {fileID: 7240862867302105946}
   dampingXZText: {fileID: 8300291734278931744}
-  staticFrictionText: {fileID: 0}
-  dynamicFrictionText: {fileID: 0}
   isLandedText: {fileID: 6422750030764429751}
   horizontalVelocityText: {fileID: 4671022029841427347}
   isWallrunningText: {fileID: 8798009027689296221}
@@ -2404,7 +2402,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &924456785746344561
 RectTransform:
   m_ObjectHideFlags: 0
